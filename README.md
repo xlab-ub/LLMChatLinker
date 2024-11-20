@@ -31,15 +31,13 @@ The interaction flow follows the fetch-decode-execute-store cycle, similar to th
 - **LLM Management**: Add, update, delete, list LLM providers and LLMs.
 - **Instruction Management**: Enable/disable instruction recording, delete and list instruction records.
 
-## Setup
+## Quick Start Guide
 
 ### Prerequisites
 
-- Python 3.8+
-- PostgreSQL
-- RabbitMQ
+- Docker
 
-### Installation
+### Setting Up the Environment
 
 1. **Clone the repository:**
     ```bash
@@ -47,64 +45,152 @@ The interaction flow follows the fetch-decode-execute-store cycle, similar to th
     cd LLMChatLinker
     ```
 
-2. **Create and activate a virtual environment:**
+2. **Environment Configuration:**
+
+    The repository includes a `.env.example` file which contains example environment variables. You need to create a `.env` file for Docker Compose to use these settings:
+
     ```bash
-    conda create -n lclinker python=3.8
-    conda activate lclinker
+    cp .env.example .env
     ```
 
-3. **Install dependencies:**
+    Repeat the same process for the `llmchatlinker-frontend`:
+
     ```bash
-    pip install -r requirements.txt
+    cd llmchatlinker-frontend
+    cp .env.example .env
+    cd ..
     ```
 
-4. **Configure the database:**
-    Update the `DATABASE_URI` in `llmchatlinker/units/database_manage_unit.py` with your PostgreSQL credentials.
+3. **Run services using Docker Compose:**
 
-5. **Initialize the database:**
+   Ensure that you have a properly configured `docker-compose.yml` file. This file should specify all necessary services like PostgreSQL, RabbitMQ, and any additional dependencies.
+
+   Start all services defined in `docker-compose.yml`:
+
     ```bash
-    python -m llmchatlinker.main
+    docker compose up --build -d
     ```
 
-6. **Run RabbitMQ:**
-    Ensure RabbitMQ is running on `localhost` (default settings).
+4. **Pull and run MLModelScope API agent individually:**
+
+    Execute the following command to start the MLModelScope API agent:
+
     ```bash
-    conda install conda-forge::rabbitmq-server
-    rabbitmq-server
+    docker run -d -p 15555:15555 xlabub/pytorch-agent-api:latest
     ```
 
-### Postgres Database
+    If you want MLModelScope API agent not to download huggingface models every time, you can use the following command:
 
-#### Pull Postgres Docker Image
+    ```bash
+    docker run -d -e HUGGINGFACE_HUB_CACHE=/root/.cache/huggingface \
+      -p 15555:15555 -v ~/.cache/huggingface:/root/.cache/huggingface xlabub/pytorch-agent-api:latest
+    ```
 
+    (Recommended) After running the MLModelScope API agent, you can query the API to download the models if not existing and to reduce the next response time even if the model is already downloaded. For example:
+
+    ```bash
+    curl http://localhost:15555/api/chat \
+      -H "Content-Type: application/json" \
+      -d '{
+          "model": "llama_3_2_1b_instruct",
+          "messages": [
+              {"role": "user", "content": "What is the longest river in the world?"}
+          ]
+      }'
+    ```
+
+    The above command will download the `llama_3_2_1b_instruct` model if it does not exist and generate a response for the given user message.
+
+### Accessing the Front-end
+
+After successfully running the `docker compose` command, you can access the front-end application via your web browser. Open the following URL:
+    
 ```bash
-docker pull postgres:16
+http://localhost:<FRONTEND_PORT>
 ```
 
-#### Run Postgres Docker Container
+Replace `<FRONTEND_PORT>` with the actual port number specified in the `.env` file within the `LLMChatLinker` directory. This value should correspond to the port binding for your front-end application.
 
-```bash
-docker run --name my_postgres \
-    -e POSTGRES_USER=myuser \
-    -e POSTGRES_PASSWORD=mypassword \
-    -e POSTGRES_DB=mydatabase \
-    -p 5433:5432 \
-    -d postgres:16
-```
+### Important Notes
 
-### RabbitMQ Server
+- **Environment Variables:** Both backend and frontend parts of the application rely on certain environment variables. Ensure your `.env` files have correct values for seamless deployment.
+  
+- **Docker Compose:** It's crucial that your `docker-compose.yml` is configured correctly with all the required services. If you need additional environment-specific settings, update your `.env` files before running `docker compose up --build -d`.
 
-#### Install RabbitMQ Server
+## Deployment without Front-end (Optional)
 
-```bash
-conda install conda-forge::rabbitmq-server
-```
+The LLMChatLinker can be deployed without the front-end application in a [Python](https://www.python.org/) environment.
 
-#### Start RabbitMQ Server
+If you want to deploy the LLMChatLinker without the front-end, you can follow the steps below:
 
-```bash
-rabbitmq-server
-```
+1. **Clone the repository:**
+    ```bash
+    git clone https://github.com/cjlee7128/LLMChatLinker.git
+    cd LLMChatLinker
+    ```
+
+2. **Run PostgreSQL service using Docker:**
+
+    ```bash
+    docker run --name my_postgres -e POSTGRES_USER=myuser -e POSTGRES_PASSWORD=mypassword -e POSTGRES_DB=mydatabase -p 5433:5432 -d postgres:16
+    ```
+
+3. **Run RabbitMQ service using Docker:**
+
+    ```bash
+    docker run -d -e RABBITMQ_DEFAULT_USER=myuser -e RABBITMQ_DEFAULT_PASS=mypassword --name rabbitmq -p 5673:5672 -p 15673:15672 rabbitmq:3-management
+    ```
+
+4. **Run MLModelScope API agent using Docker:**
+
+    Execute the following command to start the MLModelScope API agent:
+
+    ```bash
+    docker run -d -p 15555:15555 xlabub/pytorch-agent-api:latest
+    ```
+
+    If you want MLModelScope API agent not to download huggingface models every time, you can use the following command:
+
+    ```bash
+    docker run -d -e HUGGINGFACE_HUB_CACHE=/root/.cache/huggingface \
+      -p 15555:15555 -v ~/.cache/huggingface:/root/.cache/huggingface xlabub/pytorch-agent-api:latest
+    ```
+
+    (Recommended) After running the MLModelScope API agent, you can query the API to download the models if not existing and to reduce the next response time even if the model is already downloaded. For example:
+
+    ```bash
+    curl http://localhost:15555/api/chat \
+      -H "Content-Type: application/json" \
+      -d '{
+          "model": "llama_3_2_1b_instruct",
+          "messages": [
+              {"role": "user", "content": "What is the longest river in the world?"}
+          ]
+      }'
+    ```
+
+    The above command will download the `llama_3_2_1b_instruct` model if it does not exist and generate a response for the given user message.
+
+5. **Run the LLMChatLinker service without using api:**
+
+    ```bash
+    python -m llmchatlinker.main_without_api 
+    ```
+
+6. **(Optional) Run Example Scripts:**
+
+    You can run the example scripts provided in the `examples` directory to interact with the LLMChatLinker service.
+
+    ```bash
+    python -m examples.1_create_user
+    python -m examples.2_create_chat
+    python -m examples.3_add_llm_provider
+    python -m examples.4_add_llm
+    python -m examples.5_generate_llm_response
+    python -m examples.12_llm_response_regenerate
+    ```
+
+    Make sure to replace the placeholders with the actual IDs generated during the execution of the previous scripts.
 
 ## Usage
 
@@ -116,10 +202,11 @@ rabbitmq-server
 - **USER_UPDATE**: Update an existing user.
 - **USER_DELETE**: Delete an existing user.
 - **USER_LIST**: List all users.
+- **USER_GET**: Get a user by username or ID.
 - **USER_INSTRUCTION_RECORDING_ENABLE**: Enable instruction recording for a user.
 - **USER_INSTRUCTION_RECORDING_DISABLE**: Disable instruction recording for a user.
 - **USER_INSTRUCTION_RECORDS_DELETE**: Delete all instruction records for a user.
-- **USER_INSTRUCTION_RECORDING_LIST**: List all instruction records for a user.
+- **USER_INSTRUCTION_RECORDS_LIST**: List all instruction records for a user.
 
 #### Chat-related Instructions
 
@@ -128,6 +215,7 @@ rabbitmq-server
 - **CHAT_DELETE**: Delete an existing chat.
 - **CHAT_LOAD**: Load an existing chat.
 - **CHAT_LIST**: List all chats.
+- **CHAT_LIST_BY_USER**: List all chats for a user.
 
 #### LLM-related Instructions
 
@@ -141,12 +229,15 @@ rabbitmq-server
 - **LLM_UPDATE**: Update an existing LLM.
 - **LLM_DELETE**: Delete an LLM.
 - **LLM_LIST**: List all LLMs.
+- **LLM_LIST_BY_PROVIDER**: List all LLMs for a provider.
 
 ### Examples
 
 Below are some example usage scripts to interact with LLMChatLinker.
 
 #### 1. Create a User
+
+User creation requires a username and a profile. The response will contain the user ID. Make sure to replace `{USER_ID}` with the actual user ID in the subsequent instructions.
 
 ```python
 from llmchatlinker.message_queue import publish_message
@@ -163,12 +254,18 @@ def main():
 
     response = publish_message(json.dumps(instruction))
     print(f" [x] Received {response}")
+    response = json.loads(response.decode('utf-8'))
+    print(f" [x] User ID: {response['data']['user']['user_id']}")
 
 if __name__ == "__main__":
     main()
 ```
 
 #### 2. Create a Chat
+
+Chat creation requires a title and a list of user_ids. The response will contain the chat ID. Make sure to replace `{CHAT_ID}` with the actual chat ID in the subsequent instructions.
+
+You can get the User ID from the response of the previous instruction.
 
 ```python
 from llmchatlinker.message_queue import publish_message
@@ -179,18 +276,22 @@ def main():
         "type": "CHAT_CREATE",
         "data": {
             "title": "Sample Chat",
-            "usernames": ["john_doe"]
+            "user_ids": ["{USER_ID}"]
         }
     }
 
     response = publish_message(json.dumps(instruction))
     print(f" [x] Received {response}")
+    response = json.loads(response.decode('utf-8'))
+    print(f" [x] Chat ID: {response['data']['chat']['chat_id']}")
 
 if __name__ == "__main__":
     main()
 ```
 
 #### 3. Add an LLM Provider
+
+LLM Provider addition requires a name and an API endpoint. The response will contain the LLM Provider ID. Make sure to replace `{LLM_PROVIDER_ID}` with the actual LLM Provider ID in the subsequent instructions.
 
 ```python
 from llmchatlinker.message_queue import publish_message
@@ -200,19 +301,25 @@ def main():
     instruction = {
         "type": "LLM_PROVIDER_ADD",
         "data": {
-            "name": "vLLM",
-            "api_endpoint": "http://localhost:12500/v1/chat/completions"
+            "name": "MLModelScope",
+            "api_endpoint": "http://localhost:15555/api/chat"
         }
     }
 
     response = publish_message(json.dumps(instruction))
     print(f" [x] Received {response}")
+    response = json.loads(response.decode('utf-8'))
+    print(f" [x] LLM Provider ID: {response['data']['provider']['provider_id']}")
 
 if __name__ == "__main__":
     main()
 ```
 
 #### 4. Add an LLM
+
+LLM addition requires an LLM Provider ID and an LLM name. The response will contain the LLM ID. Make sure to replace `{LLM_ID}` with the actual LLM ID in the subsequent instructions.
+
+You can get the LLM Provider ID from the response of the previous instruction.
 
 ```python
 from llmchatlinker.message_queue import publish_message
@@ -222,19 +329,25 @@ def main():
     instruction = {
         "type": "LLM_ADD",
         "data": {
-            "provider_name": "vLLM",
-            "llm_name": "meta-llama/Meta-Llama-3-8B-Instruct"
+            "provider_id": "{LLM_PROVIDER_ID}",
+            "llm_name": "llama_3_2_1b_instruct"
         }
     }
 
     response = publish_message(json.dumps(instruction))
     print(f" [x] Received {response}")
+    response = json.loads(response.decode('utf-8'))
+    print(f" [x] LLM ID: {response['data']['llm']['llm_id']}")
 
 if __name__ == "__main__":
     main()
 ```
 
 #### 5. Generate an LLM Response
+
+LLM response generation requires a User ID, Chat ID, LLM Provider ID, LLM ID, and user input. The response will contain the message ID. Make sure to replace `{MESSAGE_ID}` with the actual message ID in the subsequent instructions.
+
+You can get the User ID, Chat ID, LLM Provider ID, and LLM ID from the responses of the previous instructions.
 
 ```python
 from llmchatlinker.message_queue import publish_message
@@ -244,22 +357,28 @@ def main():
     instruction = {
         "type": "LLM_RESPONSE_GENERATE",
         "data": {
-            "user_id": 1,
-            "chat_id": 1,
-            "provider_name": "vLLM",
-            "llm_name": "meta-llama/Meta-Llama-3-8B-Instruct",
-            "user_input": "Who won the world series in 2020?"
+            "user_id": "{USER_ID}",
+            "chat_id": "{CHAT_ID}",
+            "provider_id": "{LLM_PROVIDER_ID}",
+            "llm_id": "{LLM_ID}",
+            "user_input": "What is the longest river in the world?"
         }
     }
 
     response = publish_message(json.dumps(instruction))
     print(f" [x] Received {response}")
+    response = json.loads(response.decode('utf-8'))
+    print(f" [x] Message ID: {response['data']['llm_response']['message_id']}")
 
 if __name__ == "__main__":
     main()
 ```
 
 #### 6. Regenerate an LLM Response
+
+LLM response reg-eneration requires a Message ID. The response will contain the re-generated response.
+
+You can get the Message ID from the response of the previous instruction.
 
 ```python
 from llmchatlinker.message_queue import publish_message
@@ -269,12 +388,14 @@ def main():
     instruction = {
         "type": "LLM_RESPONSE_REGENERATE",
         "data": {
-            "message_id": 2  # ID of the original user message to regenerate response for
+            "message_id": "{MESSAGE_ID}"  # ID of the original user message to regenerate response for
         }
     }
 
     response = publish_message(json.dumps(instruction))
     print(f" [x] Received {response}")
+    response = json.loads(response.decode('utf-8'))
+    print(f" [x] Message ID: {response['data']['llm_response']['message_id']}")
 
 if __name__ == "__main__":
     main()

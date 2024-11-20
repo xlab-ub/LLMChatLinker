@@ -7,7 +7,7 @@ def main():
     instruction = {
         "type": "CHAT_UPDATE",
         "data": {
-            "chat_id": 1,
+            "chat_id": "{CHAT_ID}",  # ID of the chat to update
             "title": "Updated Chat Title"
         }
     }

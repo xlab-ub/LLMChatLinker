@@ -7,7 +7,7 @@ def main():
     instruction = {
         "type": "LLM_PROVIDER_DELETE",
         "data": {
-            "provider_id": 1
+            "provider_id": "{LLM_PROVIDER_ID}"  # ID of the LLM provider to delete
         }
     }
 

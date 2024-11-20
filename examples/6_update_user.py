@@ -7,7 +7,7 @@ def main():
     instruction = {
         "type": "USER_UPDATE",
         "data": {
-            "user_id": 1,
+            "user_id": "{USER_ID}",  # ID of the user to update
             "username": "john_doe_updated",
             "profile": "Updated profile"
         }

@@ -26,15 +26,31 @@ class Orchestrator:
         correlation_id = properties.correlation_id
         reply_to = properties.reply_to
 
-        user_id = instruction['data'].get('user_id')
-        if user_id:
-            user = self.database_manage_unit.query_user_by_id(user_id)
-            if user and user.record_instructions:
-                self.database_manage_unit.record_instruction(user_id, instruction['data'].get('chat_id'), instruction['type'])
+        try:
+            user_id = instruction['data'].get('user_id')
+            if user_id:
+                user_data = self.database_manage_unit.get_user_by_public_id(user_id)
+                if user_data and user_data.get('record_instructions', False):
+                    chat_id = instruction['data'].get('chat_id')
+                    if chat_id:
+                        self.database_manage_unit.record_instruction(
+                            user_id,
+                            chat_id,
+                            instruction['type']
+                        )
 
-        result = self.control_unit.decode_and_execute_instruction(instruction)
-        response_message = json.dumps(result)
-        publish_response(self.result_channel, response_message, correlation_id, reply_to)
+            result = self.control_unit.decode_and_execute_instruction(instruction)
+            response_message = json.dumps(result)
+            publish_response(self.result_channel, response_message, correlation_id, reply_to)
+    
+        except Exception as e:
+            error_response = {"status": "error", "message": str(e), "data": {}}
+            publish_response(
+                self.result_channel, 
+                json.dumps(error_response), 
+                correlation_id, 
+                reply_to
+            )
 
     def start(self):
         consume_messages(self.instruction_channel, self.instruction_queue, self.fetch_instruction)

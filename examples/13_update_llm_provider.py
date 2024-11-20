@@ -7,7 +7,7 @@ def main():
     instruction = {
         "type": "LLM_PROVIDER_UPDATE",
         "data": {
-            "provider_id": 1,
+            "provider_id": "{LLM_PROVIDER_ID}",  # ID of the LLM provider to update
             "name": "Updated Provider Name",
             "api_endpoint": "http://updated.endpoint/v1/chat/completions"
         }

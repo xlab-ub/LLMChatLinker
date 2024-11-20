@@ -14,6 +14,8 @@ def main():
 
     response = publish_message(json.dumps(instruction))
     print(f" [x] Received {response}")
+    response = json.loads(response.decode('utf-8'))
+    print(f" [x] User ID: {response['data']['user']['user_id']}")
 
 if __name__ == "__main__":
     main()

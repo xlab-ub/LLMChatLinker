@@ -8,6 +8,10 @@ setup(
         'sqlalchemy',
         'psycopg2-binary',
         'pika',
+        'fastapi',
+        'uvicorn',
+        'requests',
+        'python-slugify'
     ],
     entry_points={
         'console_scripts': [

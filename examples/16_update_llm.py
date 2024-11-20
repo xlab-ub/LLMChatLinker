@@ -7,7 +7,7 @@ def main():
     instruction = {
         "type": "LLM_UPDATE",
         "data": {
-            "llm_id": 1,
+            "llm_id": "{LLM_ID}",  # ID of the LLM to update
             "llm_name": "Updated LLM Name"
         }
     }

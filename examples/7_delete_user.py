@@ -7,7 +7,7 @@ def main():
     instruction = {
         "type": "USER_DELETE",
         "data": {
-            "user_id": 1
+            "user_id": "{USER_ID}"  # ID of the user to delete
         }
     }
 

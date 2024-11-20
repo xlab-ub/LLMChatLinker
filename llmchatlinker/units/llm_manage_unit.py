@@ -1,178 +1,260 @@
 # llmchatlinker/units/llm_manage_unit.py
 
+import logging
+from typing import Dict, Any, Optional, List
 import requests
+from .database_manage_unit import DatabaseManageUnit, NotFoundError, ValidationError
+
+logger = logging.getLogger(__name__)
 
 class LLMManageUnit:
-    def __init__(self, database_manage_unit):
-        self.database_manage_unit = database_manage_unit
+    """Handles LLM-related operations and instructions"""
 
-    def handle_instruction(self, instruction_type, data):
-        if instruction_type == 'LLM_PROVIDER_ADD':
-            return self.add_llm_provider(data)
-        elif instruction_type == 'LLM_PROVIDER_UPDATE':
-            return self.update_llm_provider(data)
-        elif instruction_type == 'LLM_PROVIDER_DELETE':
-            return self.delete_llm_provider(data)
-        elif instruction_type == 'LLM_PROVIDER_LIST':
-            return self.list_llm_providers()
-        elif instruction_type == 'LLM_ADD':
-            return self.add_llm(data)
-        elif instruction_type == 'LLM_UPDATE':
-            return self.update_llm(data)
-        elif instruction_type == 'LLM_DELETE':
-            return self.delete_llm(data)
-        elif instruction_type == 'LLM_LIST':
-            return self.list_llms()
-        elif instruction_type == 'LLM_RESPONSE_GENERATE':
-            return self.generate_llm_response(data)
-        elif instruction_type == 'LLM_RESPONSE_REGENERATE':
-            return self.regenerate_llm_response(data)
-        # Handle other LLM-related instructions here...
+    def __init__(self, database_manage_unit: DatabaseManageUnit):
+        self.db = database_manage_unit
+        self.handlers = {
+            'LLM_PROVIDER_ADD': self.add_llm_provider,
+            'LLM_PROVIDER_UPDATE': self.update_llm_provider,
+            'LLM_PROVIDER_DELETE': self.delete_llm_provider,
+            'LLM_PROVIDER_LIST': self.list_llm_providers,
+            'LLM_ADD': self.add_llm,
+            'LLM_UPDATE': self.update_llm,
+            'LLM_DELETE': self.delete_llm,
+            'LLM_LIST': self.list_llms,
+            'LLM_LIST_BY_PROVIDER': self.list_llms_by_provider,
+            'LLM_RESPONSE_GENERATE': self.generate_llm_response,
+            'LLM_RESPONSE_REGENERATE': self.regenerate_llm_response
+        }
 
-    def add_llm_provider(self, data):
+    def handle_instruction(self, instruction_type: str, data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Route instruction to appropriate handler"""
+        handler = self.handlers.get(instruction_type)
+        if not handler:
+            return self._error_response("Invalid instruction type")
+
         try:
-            self.database_manage_unit.add_provider(data['name'], data['api_endpoint'])
-            return {"status": "success", "message": f"Provider {data['name']} added successfully."}
+            return handler(data or {})
+        except (NotFoundError, ValidationError) as e:
+            return self._error_response(str(e))
         except Exception as e:
-            return {"status": "error", "message": f"Failed to add provider {data['name']}. {str(e)}"}
-
-    def update_llm_provider(self, data):
-        try:
-            provider = self.database_manage_unit.query_provider_by_id(data['provider_id'])
-            if not provider:
-                return {"status": "error", "message": f"Provider with id {data['provider_id']} does not exist."}
-            provider.name = data.get('name', provider.name)
-            provider.api_endpoint = data.get('api_endpoint', provider.api_endpoint)
-            self.database_manage_unit.commit_session()
-            return {"status": "success", "message": f"Provider {data['provider_id']} updated successfully."}
-        except Exception as e:
-            return {"status": "error", "message": f"Failed to update provider {data['provider_id']}. {str(e)}"}
-
-    def delete_llm_provider(self, data):
-        try:
-            provider = self.database_manage_unit.query_provider_by_id(data['provider_id'])
-            if not provider:
-                return {"status": "error", "message": f"Provider with id {data['provider_id']} does not exist."}
-            self.database_manage_unit.delete_provider(provider)
-            return {"status": "success", "message": f"Provider {data['provider_id']} deleted successfully."}
-        except Exception as e:
-            return {"status": "error", "message": f"Failed to delete provider {data['provider_id']}. {str(e)}"}
+            return self._error_response(f"Operation failed: {str(e)}")
     
-    def list_llm_providers(self):
+    def add_llm_provider(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Add a new LLM provider"""
+        if not self._validate_data(data, ['name', 'api_endpoint']):
+            return self._error_response("Missing required fields: name and api_endpoint")
+
         try:
-            providers = self.database_manage_unit.query_all_providers()
-            return {"status": "success", "providers": [{"provider_id": provider.provider_id, "name": provider.name, "api_endpoint": provider.api_endpoint} for provider in providers]}
+            provider_data = self.db.add_provider(
+                name=data['name'], 
+                api_endpoint=data['api_endpoint'],
+                api_key=data.get('api_key')
+            )
+            return self._success_response("Provider added successfully", {"provider": provider_data})
         except Exception as e:
-            return {"status": "error", "message": f"Failed to list providers. {str(e)}"}
-
-    def add_llm(self, data):
+            return self._error_response(f"Failed to add provider: {str(e)}")
+    
+    def update_llm_provider(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Update existing LLM provider"""
+        if not self._validate_data(data, ['provider_id', 'name', 'api_endpoint']):
+            return self._error_response("Provider ID, name, and API endpoint are required")
+        
         try:
-            provider = self.database_manage_unit.query_provider_by_name(data['provider_name'])
-            if not provider:
-                return {"status": "error", "message": "Invalid provider name."}
-            self.database_manage_unit.add_llm(data['llm_name'], provider.provider_id)
-            return {"status": "success", "message": f"LLM {data['llm_name']} added successfully under provider {data['provider_name']}."}
+            provider_data = self.db.update_provider(data['provider_id'], name=data['name'], api_endpoint=data['api_endpoint'])
+            return self._success_response("Provider updated successfully", {"provider": provider_data})
         except Exception as e:
-            return {"status": "error", "message": f"Failed to add LLM {data['llm_name']}. {str(e)}"}
+            return self._error_response(f"Failed to update provider: {str(e)}")
+    
+    def delete_llm_provider(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Delete LLM provider"""
+        if not self._validate_data(data, ['provider_id']):
+            return self._error_response("Provider ID is required")
 
-    def update_llm(self, data):
         try:
-            llm = self.database_manage_unit.query_llm_by_id(data['llm_id'])
-            if not llm:
-                return {"status": "error", "message": f"LLM with id {data['llm_id']} does not exist."}
-            llm.name = data.get('llm_name', llm.name)
-            self.database_manage_unit.commit_session()
-            return {"status": "success", "message": f"LLM {data['llm_id']} updated successfully."}
+            self.db.delete_provider(data['provider_id'])
+            return self._success_response("Provider deleted successfully")
+        except NotFoundError:
+            return self._error_response(f"Provider with ID {data['provider_id']} not found")
         except Exception as e:
-            return {"status": "error", "message": f"Failed to update LLM {data['llm_id']}. {str(e)}"}
-
-    def delete_llm(self, data):
+            return self._error_response(f"Failed to delete provider: {str(e)}")
+    
+    def list_llm_providers(self, data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """List all LLM providers"""
         try:
-            llm = self.database_manage_unit.query_llm_by_id(data['llm_id'])
-            if not llm:
-                return {"status": "error", "message": f"LLM with id {data['llm_id']} does not exist."}
-            self.database_manage_unit.delete_llm(llm)
-            return {"status": "success", "message": f"LLM {data['llm_id']} deleted successfully."}
+            providers = self.db.get_all_providers()
+            return self._success_response("Providers retrieved successfully", {"providers": providers})
         except Exception as e:
-            return {"status": "error", "message": f"Failed to delete LLM {data['llm_id']}. {str(e)}"}
+            return self._error_response(f"Failed to list providers: {str(e)}")
+    
+    def add_llm(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Add a new LLM"""
+        if not self._validate_data(data, ['provider_id', 'llm_name']):
+            return self._error_response("Missing required fields: provider_id and llm_name")
 
-    def list_llms(self):
+        logger.info(f"Adding LLM: {data['llm_name']} for provider: {data['provider_id']}")
         try:
-            llms = self.database_manage_unit.query_all_llms()
-            return {"status": "success", "llms": [{"llm_id": llm.llm_id, "name": llm.name, "provider_id": llm.provider_id} for llm in llms]}
+            llm_data = self.db.add_llm(name=data['llm_name'], provider_public_id=data['provider_id'])
+            logger.info(f"LLM added: {llm_data}")
+            return self._success_response("LLM added successfully", {"llm": llm_data})
         except Exception as e:
-            return {"status": "error", "message": f"Failed to list LLMs. {str(e)}"}
+            return self._error_response(f"Failed to add LLM: {str(e)}")
+    
+    def update_llm(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Update existing LLM"""
+        if not self._validate_data(data, ['llm_id', 'llm_name']):
+            return self._error_response("LLM ID and name are required")
 
-    def generate_llm_response(self, data):
         try:
-            provider = self.database_manage_unit.query_provider_by_name(data['provider_name'])
-            if not provider:
-                return {"status": "error", "message": "Invalid provider name."}
+            llm_data = self.db.update_llm(data['llm_id'], name=data['llm_name'])
+            return self._success_response("LLM updated successfully", {"llm": llm_data})
+        except Exception as e:
+            return self._error_response(f"Failed to update LLM: {str(e)}")
+    
+    def delete_llm(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Delete LLM"""
+        if not self._validate_data(data, ['llm_id']):
+            return self._error_response("LLM ID is required")
 
-            llm = self.database_manage_unit.query_llm_by_name_and_provider(data['llm_name'], provider.provider_id)
-            if not llm:
-                return {"status": "error", "message": "Invalid LLM name."}
-
-            formatted_messages = [{"role": "user", "content": data['user_input']}]
-            response = requests.post(provider.api_endpoint, headers={"Content-Type": "application/json"}, json={"model": llm.name, "messages": formatted_messages})
-            response.raise_for_status()
-            response_data = response.json()
-
-            user_message_id = self.database_manage_unit.add_message(data['chat_id'], data['user_id'], data['user_input'], 'user')
-            llm_response_id = self.database_manage_unit.add_message(data['chat_id'], data['user_id'], response_data['choices'][0]['message']['content'], 'assistant', llm.llm_id)
-
-            return {"status": "success", "message_id": llm_response_id, "message": response_data['choices'][0]['message']['content']}
-        except requests.RequestException as e:
-            return {"status": "error", "message": str(e)}
-
-    def regenerate_llm_response(self, data):
         try:
-            # Fetch the original user message
-            original_message = self.database_manage_unit.query_message_by_id(data['message_id'])
-            if not original_message:
-                return {"status": "error", "message": "Original message not found."}
+            self.db.delete_llm(data['llm_id'])
+            return self._success_response("LLM deleted successfully")
+        except NotFoundError:
+            return self._error_response(f"LLM with ID {data['llm_id']} not found")
+        except Exception as e:
+            return self._error_response(f"Failed to delete LLM: {str(e)}")
+    
+    def list_llms(self, data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """List all LLMs"""
+        try:
+            llms = self.db.get_all_llms()
+            return self._success_response("LLMs retrieved successfully", {"llms": llms})
+        except Exception as e:
+            return self._error_response(f"Failed to list LLMs: {str(e)}")
+    
+    def list_llms_by_provider(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """List LLMs for specific provider"""
+        if not self._validate_data(data, ['provider_id']):
+            return self._error_response("Provider ID is required")
 
-            # Check if the message has an associated LLM
-            if not original_message.llm_id:
-                return {"status": "error", "message": "Message does not have an associated LLM."}
+        try:
+            llms = self.db.get_llms_by_provider(data['provider_id'])
+            return self._success_response(f"LLMs retrieved for provider {data['provider_id']}", {"llms": llms})
+        except Exception as e:
+            return self._error_response(f"Failed to list provider LLMs: {str(e)}")
+        
+    def generate_llm_response(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate response from LLM"""
+        required_fields = ['chat_id', 'user_id', 'provider_id', 'llm_id', 'user_input']
+        if not self._validate_data(data, required_fields):
+            return self._error_response(f"Missing required fields: {', '.join(required_fields)}")
 
-            # Fetch provider and LLM details
-            llm = original_message.llm
-            if not llm:
-                return {"status": "error", "message": "LLM not found for the message."}
+        try:
+            provider_data = self.db.get_provider_by_public_id(data['provider_id'])
+            endpoint = provider_data.get('api_endpoint')
+            api_key = provider_data.get('api_key')
+            model = self.db.get_llm_by_public_id(data['llm_id']).get('name')
 
-            provider = llm.provider
-            if not provider:
-                return {"status": "error", "message": "Provider not found for the LLM."}
+            # already ordered by created_at
+            chat_messages = self.db.get_messages_by_chat(data['chat_id'])
 
-            # Format the input for the LLM
-            formatted_messages = [{"role": "user", "content": original_message.content}]
+            message_history = [
+                {"role": message.get('role'), "content": message.get('content')} 
+                for message in chat_messages
+            ]
+
+            message_history.append({"role": "user", "content": data['user_input']})
+
+            response_content = self._call_llm_api(endpoint, model, message_history, api_key)
+
+            message_data = self.db.create_message(
+                chat_public_id=data['chat_id'],
+                user_public_id=data['user_id'],
+                content=data['user_input'],
+                role='user',
+                llm_public_id=data['llm_id']
+            )
+
+            if not message_data:
+                raise ValidationError("Failed to create user message")
+
+            llm_message_data = self.db.create_message(
+                chat_public_id=data['chat_id'],
+                user_public_id=data['user_id'],
+                content=response_content,
+                role='assistant',
+                llm_public_id=data['llm_id']
+            )
+            return self._success_response("Response generated successfully", {"llm_response": llm_message_data})
+        except Exception as e:
+            return self._error_response(f"Failed to generate response: {str(e)}")
+    
+    def regenerate_llm_response(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Regenerate response from LLM"""
+        if not self._validate_data(data, ['message_id']):
+            return self._error_response("Message ID is required")
+
+        try:
+            message_data = self.db.get_message_by_public_id(data['message_id'])
+            if not message_data:
+                return self._error_response("Message not found")
+
+            if not message_data.get('llm_id'):
+                return self._error_response("Original message has no associated LLM")
+
+            llm_data = self.db.get_llm_by_public_id(message_data.get('llm_id'))
+            if not llm_data:
+                return self._error_response("LLM not found")
+            
+            endpoint = self.db.get_provider_by_public_id(llm_data.get('provider_id')).get('api_endpoint')
+            model = llm_data.get('name')
+
+            response_content = self._call_llm_api(endpoint, model, message_data.get('content'))
+
+            llm_message_data = self.db.create_message(
+                chat_public_id=message_data.get('chat_id'),
+                user_public_id=message_data.get('user_id'),
+                content=response_content,
+                role='assistant',
+                llm_public_id=message_data.get('llm_id')
+            )
+            return self._success_response("Response regenerated successfully", {"llm_response": llm_message_data})
+        except Exception as e:
+            return self._error_response(f"Failed to regenerate response: {str(e)}")
+
+    @staticmethod
+    def _call_llm_api(endpoint: str, model: str, messages: List[Dict[str, str]], api_key: str = None) -> str:
+        """Call LLM API with error handling"""
+        try:
+            headers = {"Content-Type": "application/json"}
+            if api_key:
+                headers["Authorization"] = f"Bearer {api_key}"
+
             response = requests.post(
-                provider.api_endpoint,
-                headers={"Content-Type": "application/json"},
+                endpoint,
+                headers=headers,
                 json={
-                    "model": llm.name,
-                    "messages": formatted_messages
-                }
+                    "model": model,
+                    "messages": messages
+                },
+                timeout=30
             )
             response.raise_for_status()
-            response_data = response.json()
-
-            # Store the regenerated response
-            regenerated_response = self.database_manage_unit.add_message(
-                original_message.chat_id,
-                original_message.user_id,
-                response_data['choices'][0]['message']['content'],
-                'assistant',
-                llm.llm_id
-            )
-
-            return {
-                "status": "success",
-                "message_id": regenerated_response,
-                "message": response_data['choices'][0]['message']['content']
-            }
+            return response.json()['choices'][0]['message']['content']
         except requests.RequestException as e:
-            return {"status": "error", "message": str(e)}
-        except Exception as e:
-            return {"status": "error", "message": str(e)}
+            raise Exception(f"API call failed: {str(e)}")
+
+    @staticmethod
+    def _validate_data(data: Dict[str, Any], required_keys: List[str]) -> bool:
+        """Validate presence of required keys in data"""
+        return data is not None and all(key in data for key in required_keys)
+
+    @staticmethod
+    def _success_response(message: str, data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Format success response"""
+        response = {"status": "success", "message": message, "data": data or {}}
+        return response
+
+    @staticmethod
+    def _error_response(message: str, data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Format error response"""
+        return {"status": "error", "message": message, "data": data or {}}
