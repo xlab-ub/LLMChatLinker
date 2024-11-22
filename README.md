@@ -82,7 +82,7 @@ The interaction flow follows the fetch-decode-execute-store cycle, similar to th
     If you want MLModelScope API agent not to download huggingface models every time, you can use the following command:
 
     ```bash
-    docker run -d -e HUGGINGFACE_HUB_CACHE=/root/.cache/huggingface \
+    docker run -d -e HF_HOME=/root/.cache/huggingface \
       -p 15555:15555 -v ~/.cache/huggingface:/root/.cache/huggingface xlabub/pytorch-agent-api:latest
     ```
 
@@ -152,7 +152,7 @@ If you want to deploy the LLMChatLinker without the front-end, you can follow th
     If you want MLModelScope API agent not to download huggingface models every time, you can use the following command:
 
     ```bash
-    docker run -d -e HUGGINGFACE_HUB_CACHE=/root/.cache/huggingface \
+    docker run -d -e HF_HOME=/root/.cache/huggingface \
       -p 15555:15555 -v ~/.cache/huggingface:/root/.cache/huggingface xlabub/pytorch-agent-api:latest
     ```
 
