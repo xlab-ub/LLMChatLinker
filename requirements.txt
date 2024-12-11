@@ -1,7 +1,7 @@
 sqlalchemy
 psycopg2-binary
 pika
-fastapi
+fastapi<=0.115.4
 uvicorn
 requests
 python-slugify

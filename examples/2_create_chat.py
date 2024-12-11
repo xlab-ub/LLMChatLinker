@@ -1,21 +1,23 @@
 # examples/2_create_chat.py
 
-from llmchatlinker.message_queue import publish_message
-import json
+from llmchatlinker.client import LLMChatLinkerClient
+from config_utils import read_config, write_config
 
 def main():
-    instruction = {
-        "type": "CHAT_CREATE",
-        "data": {
-            "title": "Sample Chat",
-            "user_ids": ["{USER_ID}"]  # List of user_ids to be added to the chat
-        }
-    }
+    client = LLMChatLinkerClient()
 
-    response = publish_message(json.dumps(instruction))
+    # Load user_id from config.json
+    config = read_config()
+    user_id = config.get('user_id')
+
+    response = client.create_chat(title="Sample Chat", user_ids=[user_id])
     print(f" [x] Received {response}")
-    response = json.loads(response.decode('utf-8'))
-    print(f" [x] Chat ID: {response['data']['chat']['chat_id']}")
+    chat_id = response['data']['chat']['chat_id']
+    print(f" [x] Chat ID: {chat_id}")
+
+    # Save chat_id to config.json
+    config['chat_id'] = chat_id
+    write_config(config)
 
 if __name__ == "__main__":
     main()

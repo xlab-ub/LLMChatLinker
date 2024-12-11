@@ -37,6 +37,14 @@ The interaction flow follows the fetch-decode-execute-store cycle, similar to th
 
 - Docker
 
+### Installation
+
+You can install LLMChatLinker via PyPI:
+
+```bash
+pip install llmchatlinker
+```
+
 ### Setting Up the Environment
 
 1. **Clone the repository:**
@@ -237,25 +245,23 @@ Below are some example usage scripts to interact with LLMChatLinker.
 
 #### 1. Create a User
 
-User creation requires a username and a profile. The response will contain the user ID. Make sure to replace `{USER_ID}` with the actual user ID in the subsequent instructions.
+User creation requires a username and a profile. The response will contain the user ID. The user ID is required for subsequent instructions.
 
 ```python
-from llmchatlinker.message_queue import publish_message
-import json
+from llmchatlinker.client import LLMChatLinkerClient
+from config_utils import read_config, write_config
 
 def main():
-    instruction = {
-        "type": "USER_CREATE",
-        "data": {
-            "username": "john_doe",
-            "profile": "Sample profile"
-        }
-    }
-
-    response = publish_message(json.dumps(instruction))
+    client = LLMChatLinkerClient()
+    response = client.create_user(username="john_doe", profile="Sample profile")
     print(f" [x] Received {response}")
-    response = json.loads(response.decode('utf-8'))
-    print(f" [x] User ID: {response['data']['user']['user_id']}")
+    user_id = response['data']['user']['user_id']
+    print(f" [x] User ID: {user_id}")
+
+    # Save user_id to config.json
+    config = read_config()
+    config['user_id'] = user_id
+    write_config(config)
 
 if __name__ == "__main__":
     main()
@@ -263,27 +269,29 @@ if __name__ == "__main__":
 
 #### 2. Create a Chat
 
-Chat creation requires a title and a list of user_ids. The response will contain the chat ID. Make sure to replace `{CHAT_ID}` with the actual chat ID in the subsequent instructions.
+Chat creation requires a title and a list of user_ids. The response will contain the chat ID. The chat ID is required for subsequent instructions.
 
 You can get the User ID from the response of the previous instruction.
 
 ```python
-from llmchatlinker.message_queue import publish_message
-import json
+from llmchatlinker.client import LLMChatLinkerClient
+from config_utils import read_config, write_config
 
 def main():
-    instruction = {
-        "type": "CHAT_CREATE",
-        "data": {
-            "title": "Sample Chat",
-            "user_ids": ["{USER_ID}"]
-        }
-    }
+    client = LLMChatLinkerClient()
 
-    response = publish_message(json.dumps(instruction))
+    # Load user_id from config.json
+    config = read_config()
+    user_id = config.get('user_id')
+
+    response = client.create_chat(title="Sample Chat", user_ids=[user_id])
     print(f" [x] Received {response}")
-    response = json.loads(response.decode('utf-8'))
-    print(f" [x] Chat ID: {response['data']['chat']['chat_id']}")
+    chat_id = response['data']['chat']['chat_id']
+    print(f" [x] Chat ID: {chat_id}")
+
+    # Save chat_id to config.json
+    config['chat_id'] = chat_id
+    write_config(config)
 
 if __name__ == "__main__":
     main()
@@ -291,25 +299,23 @@ if __name__ == "__main__":
 
 #### 3. Add an LLM Provider
 
-LLM Provider addition requires a name and an API endpoint. The response will contain the LLM Provider ID. Make sure to replace `{LLM_PROVIDER_ID}` with the actual LLM Provider ID in the subsequent instructions.
+LLM Provider addition requires a name and an API endpoint. The response will contain the LLM Provider ID. The LLM Provider ID is required for subsequent instructions.
 
 ```python
-from llmchatlinker.message_queue import publish_message
-import json
+from llmchatlinker.client import LLMChatLinkerClient
+from config_utils import read_config, write_config
 
 def main():
-    instruction = {
-        "type": "LLM_PROVIDER_ADD",
-        "data": {
-            "name": "MLModelScope",
-            "api_endpoint": "http://localhost:15555/api/chat"
-        }
-    }
-
-    response = publish_message(json.dumps(instruction))
+    client = LLMChatLinkerClient()
+    response = client.add_llm_provider(name="MLModelScope", api_endpoint="http://localhost:15555/api/chat")
     print(f" [x] Received {response}")
-    response = json.loads(response.decode('utf-8'))
-    print(f" [x] LLM Provider ID: {response['data']['provider']['provider_id']}")
+    provider_id = response['data']['provider']['provider_id']
+    print(f" [x] LLM Provider ID: {provider_id}")
+
+    # Save provider_id to config.json
+    config = read_config()
+    config['provider_id'] = provider_id
+    write_config(config)
 
 if __name__ == "__main__":
     main()
@@ -317,27 +323,29 @@ if __name__ == "__main__":
 
 #### 4. Add an LLM
 
-LLM addition requires an LLM Provider ID and an LLM name. The response will contain the LLM ID. Make sure to replace `{LLM_ID}` with the actual LLM ID in the subsequent instructions.
+LLM addition requires an LLM Provider ID and an LLM name. The response will contain the LLM ID. The LLM ID is required for subsequent instructions.
 
 You can get the LLM Provider ID from the response of the previous instruction.
 
 ```python
-from llmchatlinker.message_queue import publish_message
-import json
+from llmchatlinker.client import LLMChatLinkerClient
+from config_utils import read_config, write_config
 
 def main():
-    instruction = {
-        "type": "LLM_ADD",
-        "data": {
-            "provider_id": "{LLM_PROVIDER_ID}",
-            "llm_name": "llama_3_2_1b_instruct"
-        }
-    }
+    client = LLMChatLinkerClient()
 
-    response = publish_message(json.dumps(instruction))
+    # Load provider_id from config.json
+    config = read_config()
+    provider_id = config.get('provider_id')
+
+    response = client.add_llm(provider_id=provider_id, llm_name="llama_3_2_1b_instruct")
     print(f" [x] Received {response}")
-    response = json.loads(response.decode('utf-8'))
-    print(f" [x] LLM ID: {response['data']['llm']['llm_id']}")
+    llm_id = response['data']['llm']['llm_id']
+    print(f" [x] LLM ID: {llm_id}")
+
+    # Save llm_id to config.json
+    config['llm_id'] = llm_id
+    write_config(config)
 
 if __name__ == "__main__":
     main()
@@ -345,30 +353,38 @@ if __name__ == "__main__":
 
 #### 5. Generate an LLM Response
 
-LLM response generation requires a User ID, Chat ID, LLM Provider ID, LLM ID, and user input. The response will contain the message ID. Make sure to replace `{MESSAGE_ID}` with the actual message ID in the subsequent instructions.
+LLM response generation requires a User ID, Chat ID, LLM Provider ID, LLM ID, and user input. The response will contain the message ID. The message ID is required for subsequent instructions.
 
 You can get the User ID, Chat ID, LLM Provider ID, and LLM ID from the responses of the previous instructions.
 
 ```python
-from llmchatlinker.message_queue import publish_message
-import json
+from llmchatlinker.client import LLMChatLinkerClient
+from config_utils import read_config, write_config
 
 def main():
-    instruction = {
-        "type": "LLM_RESPONSE_GENERATE",
-        "data": {
-            "user_id": "{USER_ID}",
-            "chat_id": "{CHAT_ID}",
-            "provider_id": "{LLM_PROVIDER_ID}",
-            "llm_id": "{LLM_ID}",
-            "user_input": "What is the longest river in the world?"
-        }
-    }
+    client = LLMChatLinkerClient()
 
-    response = publish_message(json.dumps(instruction))
+    # Load necessary IDs from config.json
+    config = read_config()
+    user_id = config.get('user_id')
+    chat_id = config.get('chat_id')
+    provider_id = config.get('provider_id')
+    llm_id = config.get('llm_id')
+
+    response = client.generate_llm_response(
+        user_id=user_id,
+        chat_id=chat_id,
+        provider_id=provider_id,
+        llm_id=llm_id,
+        user_input="What is the longest river in the world?"
+    )
     print(f" [x] Received {response}")
-    response = json.loads(response.decode('utf-8'))
-    print(f" [x] Message ID: {response['data']['llm_response']['message_id']}")
+    message_id = response['data']['llm_response']['message_id']
+    print(f" [x] Message ID: {message_id}")
+
+    # Save message_id to config.json
+    config['message_id'] = message_id
+    write_config(config)
 
 if __name__ == "__main__":
     main()
@@ -381,21 +397,24 @@ LLM response reg-eneration requires a Message ID. The response will contain the 
 You can get the Message ID from the response of the previous instruction.
 
 ```python
-from llmchatlinker.message_queue import publish_message
-import json
+from llmchatlinker.client import LLMChatLinkerClient
+from config_utils import read_config, write_config
 
 def main():
-    instruction = {
-        "type": "LLM_RESPONSE_REGENERATE",
-        "data": {
-            "message_id": "{MESSAGE_ID}"  # ID of the original user message to regenerate response for
-        }
-    }
+    client = LLMChatLinkerClient()
 
-    response = publish_message(json.dumps(instruction))
+    # Load message_id from config.json
+    config = read_config()
+    message_id = config.get('message_id')
+
+    response = client.regenerate_llm_response(message_id=message_id)
     print(f" [x] Received {response}")
-    response = json.loads(response.decode('utf-8'))
-    print(f" [x] Message ID: {response['data']['llm_response']['message_id']}")
+    new_message_id = response['data']['llm_response']['message_id']
+    print(f" [x] New Message ID: {new_message_id}")
+
+    # Save new_message_id to config.json
+    config['message_id'] = new_message_id
+    write_config(config)
 
 if __name__ == "__main__":
     main()

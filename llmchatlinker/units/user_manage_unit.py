@@ -60,20 +60,15 @@ class UserManageUnit:
         if not self._validate_data(data, ['user_id']):
             return self._error_response("User ID is required")
         
-        update_data = {}
         if 'username' in data:
             username = data['username'].lower()
             if not self._is_valid_username(username):
                 return self._error_response("Invalid username format")
-            update_data['username'] = username
-
-        if 'display_name' in data:
-            update_data['display_name'] = data['display_name']
-        if 'profile' in data:
-            update_data['profile'] = data['profile']
+            data['username'] = username
 
         try:
-            user_data = self.db.update_user(data['user_id'], **update_data)
+            user_id = data.pop('user_id')
+            user_data = self.db.update_user(user_id, **data)
             return self._success_response("User updated successfully", {"user": user_data})
         except NotFoundError as e:
             return self._error_response(str(e))

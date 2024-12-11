@@ -3,6 +3,8 @@
 import logging
 from typing import Dict, Any, Optional, List
 import requests
+import json
+from datetime import datetime
 from .database_manage_unit import DatabaseManageUnit, NotFoundError, ValidationError
 
 logger = logging.getLogger(__name__)
@@ -56,11 +58,12 @@ class LLMManageUnit:
     
     def update_llm_provider(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Update existing LLM provider"""
-        if not self._validate_data(data, ['provider_id', 'name', 'api_endpoint']):
-            return self._error_response("Provider ID, name, and API endpoint are required")
+        if not self._validate_data(data, ['provider_id']):
+            return self._error_response("Provider ID is required")
         
         try:
-            provider_data = self.db.update_provider(data['provider_id'], name=data['name'], api_endpoint=data['api_endpoint'])
+            provider_id = data.pop('provider_id')
+            provider_data = self.db.update_provider(provider_id, **data)
             return self._success_response("Provider updated successfully", {"provider": provider_data})
         except Exception as e:
             return self._error_response(f"Failed to update provider: {str(e)}")
@@ -205,10 +208,30 @@ class LLMManageUnit:
             if not llm_data:
                 return self._error_response("LLM not found")
             
-            endpoint = self.db.get_provider_by_public_id(llm_data.get('provider_id')).get('api_endpoint')
+            provider_data = self.db.get_provider_by_public_id(llm_data.get('provider_id'))
+            endpoint = provider_data.get('api_endpoint')
+            api_key = provider_data.get('api_key')
             model = llm_data.get('name')
 
-            response_content = self._call_llm_api(endpoint, model, message_data.get('content'))
+            # already ordered by created_at
+            chat_messages = self.db.get_messages_by_chat(message_data.get('chat_id'))
+
+            def parse_datetime(date_string: str) -> datetime:
+                """Parse a datetime string into a datetime object."""
+                return datetime.fromisoformat(date_string)
+
+            # exclude the message which has the given message_id and the subsequent messages
+            message_history = [
+                {"role": message.get('role'), "content": message.get('content')} 
+                for message in chat_messages
+                if parse_datetime(message.get('created_at')) < parse_datetime(message_data.get('created_at'))
+            ]
+            # message_history = [
+            #     {"role": message.get('role'), "content": message.get('content')}
+            #     for message in chat_messages[:-1]
+            # ]
+
+            response_content = self._call_llm_api(endpoint, model, message_history, api_key)
 
             llm_message_data = self.db.create_message(
                 chat_public_id=message_data.get('chat_id'),
@@ -228,14 +251,18 @@ class LLMManageUnit:
             headers = {"Content-Type": "application/json"}
             if api_key:
                 headers["Authorization"] = f"Bearer {api_key}"
+            
+            payload = {
+                "model": model,
+                "messages": messages
+            }
+
+            # logger.info(f"Calling LLM API at {endpoint} with payload: {json.dumps(payload)}")
 
             response = requests.post(
                 endpoint,
                 headers=headers,
-                json={
-                    "model": model,
-                    "messages": messages
-                },
+                json=payload,
                 timeout=30
             )
             response.raise_for_status()

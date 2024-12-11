@@ -1,21 +1,19 @@
 # examples/1_create_user.py
 
-from llmchatlinker.message_queue import publish_message
-import json
+from llmchatlinker.client import LLMChatLinkerClient
+from config_utils import read_config, write_config
 
 def main():
-    instruction = {
-        "type": "USER_CREATE",
-        "data": {
-            "username": "john_doe",
-            "profile": "Sample profile"
-        }
-    }
-
-    response = publish_message(json.dumps(instruction))
+    client = LLMChatLinkerClient()
+    response = client.create_user(username="john_doe", profile="Sample profile")
     print(f" [x] Received {response}")
-    response = json.loads(response.decode('utf-8'))
-    print(f" [x] User ID: {response['data']['user']['user_id']}")
+    user_id = response['data']['user']['user_id']
+    print(f" [x] User ID: {user_id}")
+
+    # Save user_id to config.json
+    config = read_config()
+    config['user_id'] = user_id
+    write_config(config)
 
 if __name__ == "__main__":
     main()

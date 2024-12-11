@@ -255,16 +255,19 @@ class DatabaseManageUnit:
             session.flush()  # Ensures new_user.public_id is available
             return self._user_to_dict(new_user)
     
-    def update_user(self, public_id: str, username: str, display_name: str, profile: str) -> Dict[str, Any]:
+    def update_user(self, public_id: str, username: Optional[str] = None, display_name: Optional[str] = None, profile: Optional[str] = None) -> Dict[str, Any]:
         """Update a user and return as dictionary."""
         with self.session_scope() as session:
             user = session.query(User).filter_by(public_id=public_id, is_active=True).first()
             if not user:
                 raise NotFoundError("User not found")
             
-            user.username = username
-            user.display_name = display_name
-            user.profile = profile
+            if username is not None:
+                user.username = username
+            if display_name is not None:
+                user.display_name = display_name
+            if profile is not None:
+                user.profile = profile
             session.add(user)
             return self._user_to_dict(user)
     
@@ -374,15 +377,19 @@ class DatabaseManageUnit:
             session.flush()
             return self._provider_to_dict(provider)
     
-    def update_provider(self, public_id: str, name: str, api_endpoint: str) -> Dict[str, Any]:
+    def update_provider(self, public_id: str, name: Optional[str] = None, api_endpoint: Optional[str] = None, api_key: Optional[str] = None) -> Dict[str, Any]:
         """Update a provider and return as dictionary."""
         with self.session_scope() as session:
             provider = session.query(Provider).filter_by(public_id=public_id, is_active=True).first()
             if not provider:
                 raise NotFoundError("Provider not found")
             
-            provider.name = name
-            provider.api_endpoint = api_endpoint
+            if name is not None:
+                provider.name = name
+            if api_endpoint is not None:
+                provider.api_endpoint = api_endpoint
+            if api_key is not None:
+                provider.api_key = api_key
             session.add(provider)
             return self._provider_to_dict(provider)
     
